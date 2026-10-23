@@ -1,0 +1,10 @@
+{
+  "credit": "CREDIT-1",
+  "publisher": { "type": "github", "id": "fitzyracing1", "name": "Joshua Almeida" },
+  "updated": "2026-10-23T00:00:00Z",
+  "credits": [
+    { "to": { "type": "github", "id": "foundry-rs/foundry" }, "for": "Solidity toolchain used to build and test CreditRegistry", "date": "2026-10-23", "weight": 10, "tags": ["tooling"] },
+    { "to": { "type": "github", "id": "fitzyracing1/space-money" }, "for": "SPACE token integration target", "date": "2026-10-23", "weight": 5 },
+    { "to": { "type": "person", "id": "ada-lovelace", "name": "Ada Lovelace" }, "for": "Inspiration", "date": "1843-01-01" }
+  ]
+}

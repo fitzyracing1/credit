@@ -1,0 +1,1 @@
+{ "credit": "CREDIT-0", "publisher": { "type": "alien", "id": "" }, "credits": [ { "to": { "type": "github", "id": "x" }, "date": "yesterday", "weight": 500 } ] }

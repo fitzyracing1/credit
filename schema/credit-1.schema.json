@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/fitzyracing1/credit/schema/credit-1.schema.json",
+  "title": "CREDIT-1 document",
+  "type": "object",
+  "required": ["credit", "publisher", "credits"],
+  "additionalProperties": false,
+  "properties": {
+    "credit": { "const": "CREDIT-1" },
+    "publisher": { "$ref": "#/$defs/entity" },
+    "updated": { "type": "string", "format": "date-time" },
+    "credits": { "type": "array", "items": { "$ref": "#/$defs/credit" } },
+    "signature": { "$ref": "#/$defs/signature" }
+  },
+  "$defs": {
+    "entity": {
+      "type": "object",
+      "required": ["type", "id"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "enum": ["github", "company", "person", "domain", "eth"] },
+        "id": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "name": { "type": "string", "maxLength": 256 },
+        "url": { "type": "string", "format": "uri" }
+      }
+    },
+    "credit": {
+      "type": "object",
+      "required": ["to", "for", "date"],
+      "additionalProperties": false,
+      "properties": {
+        "to": { "$ref": "#/$defs/entity" },
+        "for": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "date": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}" },
+        "weight": { "type": "integer", "minimum": 1, "maximum": 100, "default": 1 },
+        "tags": { "type": "array", "items": { "type": "string", "maxLength": 64 }, "maxItems": 16 }
+      }
+    },
+    "signature": {
+      "type": "object",
+      "required": ["alg", "key", "sig"],
+      "additionalProperties": false,
+      "properties": {
+        "alg": { "enum": ["ed25519", "eip191"] },
+        "key": { "type": "string" },
+        "sig": { "type": "string" }
+      }
+    }
+  }
+}
