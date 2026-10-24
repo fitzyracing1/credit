@@ -5,6 +5,7 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const L = require('../lib/ledger');
 const R = require('../lib/recipient');
+const F = require('../lib/front');
 
 const ROOT = path.resolve(__dirname, '..');
 const DEFAULTS = {
@@ -23,6 +24,10 @@ const USAGE = `credit — signed, public, append-only credit grants
   credit balance <user|owner/repo>             print CREDIT.json for a recipient
   credit site [--out docs]                      copy ledger + shields badge JSON into the static scan site
   credit sync --repo owner/repo [--ledger url] [--out CREDIT.json]   (used by the repo-wallet Action)
+  credit front --repo owner/repo [--ledger url] [--scan url] [--out file]
+        render the sticky PR-comment body: balance, scan-page link, give-credit line (used by the front Action)
+  credit propose <user> --repo owner/repo --pr N [--title t] [--amount n] [--out dir] [--readme file]
+        UNSIGNED grant proposal for a merged PR (all-contributors style). Never signs, appends, or sends.
 `;
 
 function parse(argv) {
@@ -128,6 +133,38 @@ async function main(argv, out = console.log) {
       const changed = !prevJ || prevJ.head !== credit.head || prevJ.balance !== credit.balance;
       if (changed) fs.writeFileSync(file, JSON.stringify(credit, null, 2) + '\n');
       out(`lit: ${opt.repo} balance ${credit.balance} (${changed ? 'updated' : 'unchanged'})`);
+      return 0;
+    }
+    case 'front': {
+      if (!opt.repo) throw new Error('--repo owner/repo required');
+      const src = opt.ledger || DEFAULTS.ledgerUrl;
+      const log = await loadLog(src);
+      if (!L.verifyLog(log).ok) { out('dark: ledger failed verification; refusing to render a comment'); return 1; }
+      const credit = R.creditJson(log, L.parseRecipient(opt.repo), src);
+      const md = F.stickyComment(credit, { scanUrl: opt.scan || DEFAULTS.scanUrl });
+      if (opt.out) { fs.writeFileSync(opt.out, md + '\n'); out(`comment body written to ${opt.out}`); }
+      else out(md);
+      return 0;
+    }
+    case 'propose': {
+      if (opt.send) throw new Error('propose never sends; only the owner signs and sends with `credit give --send`');
+      const [who] = pos;
+      if (!who || !opt.repo || !opt.pr) throw new Error('usage: credit propose <user> --repo owner/repo --pr N');
+      const p = F.proposal({ author: who, repo: opt.repo, pr: opt.pr, title: opt.title,
+        amount: opt.amount || 1, scanUrl: opt.scan || DEFAULTS.scanUrl });
+      if (opt.out) {
+        fs.mkdirSync(opt.out, { recursive: true });
+        fs.writeFileSync(path.join(opt.out, 'proposal.json'), JSON.stringify(p.grant, null, 2) + '\n');
+        fs.writeFileSync(path.join(opt.out, 'proposal.md'), p.md + '\n');
+        out(`proposal written to ${opt.out} (dry-run; nothing signed, ledger untouched)`);
+      } else out(p.md);
+      if (opt.readme) {
+        const prev = fs.existsSync(opt.readme) ? fs.readFileSync(opt.readme, 'utf8') : '';
+        const next = F.updateContributors(prev, { author: who, amount: opt.amount || 1, pr: opt.pr });
+        if (next !== prev) { fs.writeFileSync(opt.readme, next); out(`updated contributors section in ${opt.readme}`); }
+        else out(`contributors section already lists ${who} for #${opt.pr}`);
+      }
+      out(`sign later (owner only, from a clone): ${p.giveCmd}`);
       return 0;
     }
     default:
