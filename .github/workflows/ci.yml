@@ -28,6 +28,14 @@ jobs:
         run: node cli/credit.js verify
       - name: scan site data matches ledger
         run: cmp ledger/grants.jsonl docs/grants.jsonl && cmp ledger/keys.json docs/keys.json
+      - name: crawler feeds match ledger (feed.json / Atom feed.xml are deterministic)
+        run: node cli/credit.js site --out /tmp/site >/dev/null && cmp /tmp/site/feed.json docs/feed.json && cmp /tmp/site/feed.xml docs/feed.xml
+      - name: funding smoke (writes pointers once, never overwrites)
+        run: |
+          mkdir -p /tmp/fund && echo '{"name":"x"}' > /tmp/fund/package.json
+          node cli/credit.js funding --dir /tmp/fund
+          grep -q 'fitzyracing1.github.io/credit' /tmp/fund/.github/FUNDING.yml /tmp/fund/package.json
+          node cli/credit.js funding --dir /tmp/fund | grep -q 'kept existing'
       - name: action sync smoke test (no PR)
         run: node cli/credit.js sync --repo fitzyracing1/credit --ledger ledger/grants.jsonl --out /tmp/CREDIT.json
       - name: front sticky-comment body smoke (bot-prs / every-pr modes)
