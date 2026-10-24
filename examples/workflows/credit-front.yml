@@ -1,0 +1,30 @@
+# Copy into .github/workflows/ of a repo YOU own. "Credit in front of bots":
+# the front Action only ever comments on / opens PRs in THIS repo, never signs the
+# ledger, and needs no secret beyond GITHUB_TOKEN.
+#
+# pull_request_target is deliberate: Dependabot-triggered `pull_request` runs get a
+# read-only token and could not comment. It is safe here because PR head code is never
+# checked out or executed — only this repo's default branch (for the README PR).
+name: credit front
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, closed]
+permissions:
+  contents: write        # on-merge: push the credit/contributors branch
+  pull-requests: write   # sticky comments + the README PR
+jobs:
+  sticky:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: fitzyracing1/credit/front@main
+        with:
+          mode: bot-prs   # bot-prs = Dependabot/Renovate only; every-pr = all PRs
+  propose-on-merge:
+    if: github.event.action == 'closed' && github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4   # base default branch only; PR head is never checked out
+      - uses: fitzyracing1/credit/front@main
+        with:
+          mode: on-merge
