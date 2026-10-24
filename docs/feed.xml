@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>credit — signed public grant feed</title>
+  <id>https://fitzyracing1.github.io/credit/</id>
+  <link href="https://fitzyracing1.github.io/credit/"/>
+  <link rel="self" href="https://fitzyracing1.github.io/credit/feed.xml"/>
+  <updated>2026-10-24T14:15:05.057Z</updated>
+  <author><name>credit ledger</name></author>
+  <subtitle>Credit is recognition only. It is not money, a security, or a claim on anything.</subtitle>
+  <entry>
+    <id>https://fitzyracing1.github.io/credit/#grant-bd21e19a85cd6912658058382850892135cafb33c67e50e271f074af5940a57d</id>
+    <title>+10 credit to fitzyracing1 from fitzyracing1</title>
+    <updated>2026-10-24T14:15:04.943Z</updated>
+    <link href="https://fitzyracing1.github.io/credit/#user:fitzyracing1"/>
+    <author><name>fitzyracing1</name></author>
+    <summary>demo: test identity grant</summary>
+    <content type="text">grant #0: 10 credit from fitzyracing1 to user:fitzyracing1 for "demo: test identity grant" — hash bd21e19a85cd6912658058382850892135cafb33c67e50e271f074af5940a57d sig wAnsu7JsYnVVuY/xy/QQhRKhw1DAF7B/31l2Oe5u8GunwWj1WjatAxgTykVm724l8qdv1uIaUW61XUNbT5vrDg== (ed25519; verify against https://raw.githubusercontent.com/fitzyracing1/credit/main/ledger/grants.jsonl)</content>
+  </entry>
+  <entry>
+    <id>https://fitzyracing1.github.io/credit/#grant-0c155c9cfa1bee26873f7cb40d61c41445f7d7201ed3c7711aeae4957e547783</id>
+    <title>+5 credit to fitzyracing1/credit from fitzyracing1</title>
+    <updated>2026-10-24T14:15:05.057Z</updated>
+    <link href="https://fitzyracing1.github.io/credit/#repo:fitzyracing1/credit"/>
+    <author><name>fitzyracing1</name></author>
+    <summary>demo: building the credit standard</summary>
+    <content type="text">grant #1: 5 credit from fitzyracing1 to repo:fitzyracing1/credit for "demo: building the credit standard" — hash 0c155c9cfa1bee26873f7cb40d61c41445f7d7201ed3c7711aeae4957e547783 sig H2xwY9xGy2AIvfRlLwaHjv75O0T54xEFViohwlHCiLZ8h2RJXS7exAut4z7KXydlKuSxVnXANm5HSdM8706pDw== (ed25519; verify against https://raw.githubusercontent.com/fitzyracing1/credit/main/ledger/grants.jsonl)</content>
+  </entry>
+</feed>

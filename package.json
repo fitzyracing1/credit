@@ -4,6 +4,7 @@
   "private": true,
   "description": "Give signed, public, append-only credit to GitHub users and repos. Not published to npm.",
   "license": "MIT",
+  "funding": "https://fitzyracing1.github.io/credit/",
   "bin": { "credit": "cli/credit.js" },
   "engines": { "node": ">=20" },
   "scripts": { "test": "node --test test-js/", "verify": "node cli/credit.js verify" }

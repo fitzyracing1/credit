@@ -25,6 +25,7 @@ anyone can verify it, and protocols can reward it.
 | `examples/` | example documents (one intentionally invalid) |
 | `tools/credit_validate.py` | zero-dep validator CLI — prints `lit` / `dark` |
 | `tools/credit_score.py` | zero-dep scorer; fetches read-only, honours robots.txt |
+| `front/action.yml` | "credit in front of bots" Action — sticky PR comments + on-merge dry-run proposals |
 | `src/CreditRegistry.sol` | on-chain Merkle roots of credit scores |
 | `src/SpaceCreditRouter.sol` | SPACE fee router: credit discount + (off) revenue share |
 
@@ -64,7 +65,9 @@ npm test
 
 - **Scan page**: `docs/` is GitHub Pages-ready (Settings → Pages → `main` / `docs`). Verifies every grant in the browser and shows lit/dark.
 - **Badges**: `https://img.shields.io/endpoint?url=https://fitzyracing1.github.io/credit/badges/<user|repo>-<id>.json` (`/` → `--`).
-- **Repo wallet**: add [`examples/workflows/credit-wallet.yml`](examples/workflows/credit-wallet.yml) to your repo; the [`action.yml`](action.yml) fetches the ledger, verifies it, and opens a PR in *your* repo syncing `CREDIT.json`.
+- **Repo wallet**: add [`examples/workflows/credit-wallet.yml`](examples/workflows/credit-wallet.yml) to your repo; the [`action.yml`](action.yml) fetches the ledger, verifies it, and opens a PR in *your* repo syncing `CREDIT.json` — plus (unless `funding: "false"`) the same scan-page funding pointers as below, never overwriting existing values.
+- **Crawler-readable**: `credit site` also writes [`docs/feed.json`](docs/feed.json) (balances per recipient + every signed grant with hash/signature) and [`docs/feed.xml`](docs/feed.xml) (Atom) so ecosyste.ms / thanks.dev-style crawlers can read the ledger; both are linked from the scan page's `<head>`. `package.json#funding` and [`.github/FUNDING.yml`](.github/FUNDING.yml) point at the scan page (`custom:` only — no sponsor accounts; credit is not money). `credit funding --dir <repo>` drops the same two pointers into any repo.
+- **Credit in front of bots**: add [`examples/workflows/credit-front.yml`](examples/workflows/credit-front.yml) to a repo *you own*; the [`front/action.yml`](front/action.yml) Action keeps **one sticky comment** on PRs with the repo's `CREDIT.json` balance, a scan-page link, and a give-credit line (`bot-prs` mode = Dependabot/Renovate only, `every-pr` = all PRs), and on merge (`on-merge` mode, all-contributors style) **proposes** an *unsigned* grant for the PR author — dry-run comment + run artifact + a README "Contributors credit" PR. It **never signs or appends to the ledger** (the key never enters CI; `give` stays dry-run unless the owner runs `--send`), only ever acts on the repo it's installed in, and needs no secret beyond `GITHUB_TOKEN`. Details: [`front/README.md`](front/README.md).
 - **Future rails (OFF)**: `rails/` holds an ERC-20-style token mirror (no deploy) and a bank-payout adapter interface (no provider), gated by `config/rails.json`. ⚠️ **Needs legal review** before enabling either.
 - Credit is recognition only — not money, not a security.
 

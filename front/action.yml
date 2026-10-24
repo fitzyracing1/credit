@@ -1,0 +1,112 @@
+name: credit front
+description: >-
+  Put credit in front of bots. Sticky PR comment with this repo's CREDIT.json balance
+  (bot-prs or every-pr mode), and an UNSIGNED grant proposal when a PR merges (on-merge
+  mode). Only ever acts on the repo the workflow is installed in; never signs the ledger;
+  needs no secret beyond GITHUB_TOKEN.
+branding: { icon: award, color: yellow }
+inputs:
+  mode:
+    description: "bot-prs (Dependabot/Renovate only) | every-pr | on-merge"
+    required: true
+  ledger-url:
+    description: Raw URL of grants.jsonl
+    default: https://raw.githubusercontent.com/fitzyracing1/credit/main/ledger/grants.jsonl
+  scan-url:
+    description: Scan page URL
+    default: https://fitzyracing1.github.io/credit/
+  token:
+    description: Token for THIS repo only (pull-requests write; plus contents write for on-merge)
+    default: ${{ github.token }}
+  bots:
+    description: Comma-separated bot logins recognised by bot-prs mode (also excluded from on-merge proposals)
+    default: "dependabot[bot],dependabot-preview[bot],renovate[bot],renovate-bot"
+  amount:
+    description: Credit amount proposed per merged PR (on-merge mode)
+    default: "1"
+  readme:
+    description: README file holding the contributors credit section (on-merge mode)
+    default: README.md
+  open-pr:
+    description: "Set to 'false' to skip the README contributors PR in on-merge mode"
+    default: "true"
+outputs:
+  result: { description: "commented | updated | proposed | skipped", value: "${{ steps.front.outputs.result }}" }
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with: { node-version: "20" }
+    - id: front
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        MODE: ${{ inputs.mode }}
+        LEDGER: ${{ inputs.ledger-url }}
+        SCAN: ${{ inputs.scan-url }}
+        BOTS: ${{ inputs.bots }}
+        AMOUNT: ${{ inputs.amount }}
+        README: ${{ inputs.readme }}
+        OPEN_PR: ${{ inputs.open-pr }}
+        CLI: ${{ github.action_path }}/../cli/credit.js
+      run: |
+        set -euo pipefail
+        skip() { echo "skip: $1"; echo "result=skipped" >> "$GITHUB_OUTPUT"; exit 0; }
+        case "$GITHUB_EVENT_NAME" in pull_request|pull_request_target) ;; *) skip "event $GITHUB_EVENT_NAME is not a pull request event" ;; esac
+        EV="$GITHUB_EVENT_PATH"
+        PR=$(jq -r '.pull_request.number // empty' "$EV"); [ -n "$PR" ] || skip "no pull_request in event payload"
+        AUTHOR=$(jq -r '.pull_request.user.login // empty' "$EV")
+        BASE=$(jq -r '.pull_request.base.repo.full_name // empty' "$EV")
+        ACTION=$(jq -r '.action // empty' "$EV")
+        MERGED=$(jq -r '.pull_request.merged // false' "$EV")
+        # Hard guard: only ever comment on / open PRs in the repo this workflow is installed in.
+        [ "$BASE" = "$GITHUB_REPOSITORY" ] || skip "PR belongs to $BASE, not $GITHUB_REPOSITORY; refusing to act on another repo"
+        is_bot() { local a="${1,,}" b; IFS=',' read -ra bs <<< "$BOTS"; for b in "${bs[@]}"; do [ "$a" = "${b,,}" ] && return 0; done; return 1; }
+        case "$MODE" in
+          bot-prs|every-pr)
+            [ "$ACTION" != "closed" ] || skip "PR is closed; comment modes act on open PRs"
+            if [ "$MODE" = "bot-prs" ] && ! is_bot "$AUTHOR"; then skip "author $AUTHOR is not a known bot (bots: $BOTS)"; fi
+            node "$CLI" front --repo "$GITHUB_REPOSITORY" --ledger "$LEDGER" --scan "$SCAN" --out /tmp/credit-front.md
+            CID=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
+              -q '.[] | select(.body | contains("<!-- credit-front -->")) | .id' | head -n1)
+            if [ -n "$CID" ]; then
+              gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$CID" -F body=@/tmp/credit-front.md >/dev/null
+              echo "updated sticky credit comment $CID on #$PR"; echo "result=updated" >> "$GITHUB_OUTPUT"
+            else
+              gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$PR/comments" -F body=@/tmp/credit-front.md >/dev/null
+              echo "posted sticky credit comment on #$PR"; echo "result=commented" >> "$GITHUB_OUTPUT"
+            fi
+            ;;
+          on-merge)
+            { [ "$ACTION" = "closed" ] && [ "$MERGED" = "true" ]; } || skip "on-merge mode only acts when a PR is merged"
+            if is_bot "$AUTHOR"; then skip "author $AUTHOR is a bot; no proposal"; fi
+            case "$AUTHOR" in *\[bot\]*) skip "author $AUTHOR is a bot; no proposal" ;; esac
+            TITLE=$(jq -r '.pull_request.title // ""' "$EV")
+            node "$CLI" propose "$AUTHOR" --repo "$GITHUB_REPOSITORY" --pr "$PR" --title "$TITLE" --amount "$AMOUNT" --scan "$SCAN" --out credit-proposal
+            gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$PR/comments" -F body=@credit-proposal/proposal.md >/dev/null
+            echo "posted dry-run proposal comment on #$PR"
+            if [ "$OPEN_PR" = "true" ] && [ -e .git ]; then
+              BR=credit/contributors
+              git fetch origin "$BR" >/dev/null 2>&1 && git checkout -B "$BR" "origin/$BR" || git checkout -B "$BR"
+              node "$CLI" propose "$AUTHOR" --repo "$GITHUB_REPOSITORY" --pr "$PR" --title "$TITLE" --amount "$AMOUNT" --scan "$SCAN" --readme "$README" --out /tmp/credit-proposal
+              if ! git diff --quiet -- "$README"; then
+                git config user.name "credit-front[bot]"; git config user.email "credit-front@users.noreply.github.com"
+                git add "$README"; git commit -m "credit: propose $AMOUNT credit to @$AUTHOR for #$PR (unsigned)"
+                git push -f origin "$BR"
+                gh pr view "$BR" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || gh pr create --repo "$GITHUB_REPOSITORY" \
+                  --head "$BR" --title "credit: contributors credit section" \
+                  --body "Dry-run credit proposals for merged PRs, by the credit front Action. Nothing here is signed; the ledger is untouched. The owner signs with \`credit give\` from a clone."
+              fi
+            elif [ "$OPEN_PR" = "true" ]; then
+              echo "no checkout found; skipping the README contributors PR (add actions/checkout before this step)"
+            fi
+            echo "result=proposed" >> "$GITHUB_OUTPUT"
+            ;;
+          *) echo "error: mode must be bot-prs, every-pr, or on-merge (got '$MODE')" >&2; exit 2 ;;
+        esac
+    - if: inputs.mode == 'on-merge'
+      uses: actions/upload-artifact@v4
+      with:
+        name: credit-proposal-pr-${{ github.event.pull_request.number }}
+        path: credit-proposal/
+        if-no-files-found: ignore

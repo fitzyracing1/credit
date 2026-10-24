@@ -5,6 +5,8 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const L = require('../lib/ledger');
 const R = require('../lib/recipient');
+const F = require('../lib/front');
+const FEED = require('../lib/feed');
 
 const ROOT = path.resolve(__dirname, '..');
 const DEFAULTS = {
@@ -21,8 +23,13 @@ const USAGE = `credit — signed, public, append-only credit grants
         --send actually opens the PR in the recipient's repo (via gh). Emails are never sent; only drafted.
   credit verify [--ledger file|url] [--json]   check signatures + hash chain (prints lit / dark)
   credit balance <user|owner/repo>             print CREDIT.json for a recipient
-  credit site [--out docs]                      copy ledger + shields badge JSON into the static scan site
+  credit site [--out docs]                      refresh the static scan site: ledger copy, shields badges, crawler feeds (feed.json + Atom feed.xml)
+  credit funding [--dir .] [--scan url]         write .github/FUNDING.yml + package.json "funding" pointing at the scan page (existing values are never overwritten)
   credit sync --repo owner/repo [--ledger url] [--out CREDIT.json]   (used by the repo-wallet Action)
+  credit front --repo owner/repo [--ledger url] [--scan url] [--out file]
+        render the sticky PR-comment body: balance, scan-page link, give-credit line (used by the front Action)
+  credit propose <user> --repo owner/repo --pr N [--title t] [--amount n] [--out dir] [--readme file]
+        UNSIGNED grant proposal for a merged PR (all-contributors style). Never signs, appends, or sends.
 `;
 
 function parse(argv) {
@@ -113,7 +120,10 @@ async function main(argv, out = console.log) {
         const name = `${b.to.type}-${b.to.id.replace('/', '--')}.json`;
         fs.writeFileSync(path.join(dir, 'badges', name), JSON.stringify(R.shieldsBadge(log, b.to)) + '\n');
       }
-      out(`site data written to ${dir}`);
+      const urls = { ledgerUrl: DEFAULTS.ledgerUrl, scanUrl: DEFAULTS.scanUrl };
+      fs.writeFileSync(path.join(dir, 'feed.json'), JSON.stringify(FEED.feedJson(log, urls), null, 2) + '\n');
+      fs.writeFileSync(path.join(dir, 'feed.xml'), FEED.feedAtom(log, urls));
+      out(`site data written to ${dir} (incl. crawler feeds feed.json + feed.xml)`);
       return 0;
     }
     case 'sync': {
@@ -128,6 +138,56 @@ async function main(argv, out = console.log) {
       const changed = !prevJ || prevJ.head !== credit.head || prevJ.balance !== credit.balance;
       if (changed) fs.writeFileSync(file, JSON.stringify(credit, null, 2) + '\n');
       out(`lit: ${opt.repo} balance ${credit.balance} (${changed ? 'updated' : 'unchanged'})`);
+      return 0;
+    }
+    case 'funding': {
+      const dir = opt.dir || '.';
+      const scan = opt.scan || DEFAULTS.scanUrl;
+      const fy = path.join(dir, '.github', 'FUNDING.yml');
+      if (fs.existsSync(fy)) out(`kept existing ${fy} (never overwritten)`);
+      else {
+        fs.mkdirSync(path.dirname(fy), { recursive: true });
+        fs.writeFileSync(fy, FEED.fundingYml(scan));
+        out(`wrote ${fy} -> ${scan}`);
+      }
+      const pj = path.join(dir, 'package.json');
+      if (fs.existsSync(pj)) {
+        const p = JSON.parse(fs.readFileSync(pj, 'utf8'));
+        if (p.funding) out(`kept existing funding in ${pj} (never overwritten)`);
+        else { p.funding = scan; fs.writeFileSync(pj, JSON.stringify(p, null, 2) + '\n'); out(`added funding to ${pj} -> ${scan}`); }
+      }
+      return 0;
+    }
+    case 'front': {
+      if (!opt.repo) throw new Error('--repo owner/repo required');
+      const src = opt.ledger || DEFAULTS.ledgerUrl;
+      const log = await loadLog(src);
+      if (!L.verifyLog(log).ok) { out('dark: ledger failed verification; refusing to render a comment'); return 1; }
+      const credit = R.creditJson(log, L.parseRecipient(opt.repo), src);
+      const md = F.stickyComment(credit, { scanUrl: opt.scan || DEFAULTS.scanUrl });
+      if (opt.out) { fs.writeFileSync(opt.out, md + '\n'); out(`comment body written to ${opt.out}`); }
+      else out(md);
+      return 0;
+    }
+    case 'propose': {
+      if (opt.send) throw new Error('propose never sends; only the owner signs and sends with `credit give --send`');
+      const [who] = pos;
+      if (!who || !opt.repo || !opt.pr) throw new Error('usage: credit propose <user> --repo owner/repo --pr N');
+      const p = F.proposal({ author: who, repo: opt.repo, pr: opt.pr, title: opt.title,
+        amount: opt.amount || 1, scanUrl: opt.scan || DEFAULTS.scanUrl });
+      if (opt.out) {
+        fs.mkdirSync(opt.out, { recursive: true });
+        fs.writeFileSync(path.join(opt.out, 'proposal.json'), JSON.stringify(p.grant, null, 2) + '\n');
+        fs.writeFileSync(path.join(opt.out, 'proposal.md'), p.md + '\n');
+        out(`proposal written to ${opt.out} (dry-run; nothing signed, ledger untouched)`);
+      } else out(p.md);
+      if (opt.readme) {
+        const prev = fs.existsSync(opt.readme) ? fs.readFileSync(opt.readme, 'utf8') : '';
+        const next = F.updateContributors(prev, { author: who, amount: opt.amount || 1, pr: opt.pr });
+        if (next !== prev) { fs.writeFileSync(opt.readme, next); out(`updated contributors section in ${opt.readme}`); }
+        else out(`contributors section already lists ${who} for #${opt.pr}`);
+      }
+      out(`sign later (owner only, from a clone): ${p.giveCmd}`);
       return 0;
     }
     default:
