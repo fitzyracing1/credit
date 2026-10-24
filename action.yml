@@ -14,6 +14,12 @@ inputs:
   open-pr:
     description: "Set to 'false' to only verify and write CREDIT.json without opening a PR"
     default: "true"
+  funding:
+    description: "Set to 'false' to skip writing .github/FUNDING.yml + package.json funding pointers at the scan page (existing values are never overwritten)"
+    default: "true"
+  scan-url:
+    description: Scan page URL the funding pointers reference
+    default: https://fitzyracing1.github.io/credit/
 outputs:
   status: { description: "lit or dark", value: "${{ steps.sync.outputs.status }}" }
 runs:
@@ -30,13 +36,20 @@ runs:
         else
           echo "status=dark" >> "$GITHUB_OUTPUT"; exit 1
         fi
+    - if: inputs.funding == 'true'
+      shell: bash
+      env: { SCAN: "${{ inputs.scan-url }}" }
+      run: node "$GITHUB_ACTION_PATH/cli/credit.js" funding --dir . --scan "$SCAN"
     - if: inputs.open-pr == 'true'
       shell: bash
       env: { GH_TOKEN: "${{ inputs.token }}" }
       run: |
-        git diff --quiet -- CREDIT.json && git ls-files --error-unmatch CREDIT.json >/dev/null 2>&1 && { echo "CREDIT.json unchanged"; exit 0; }
+        FILES="CREDIT.json .github/FUNDING.yml package.json"
+        git status --porcelain -- $FILES | grep -q . || { echo "nothing to sync"; exit 0; }
         BR=credit/sync-balance
         git config user.name "credit-wallet[bot]"; git config user.email "credit-wallet@users.noreply.github.com"
-        git checkout -B "$BR"; git add CREDIT.json; git commit -m "credit: sync CREDIT.json from public ledger"
+        git checkout -B "$BR"
+        for f in $FILES; do [ -e "$f" ] && git add "$f"; done
+        git commit -m "credit: sync CREDIT.json from public ledger"
         git push -f origin "$BR"
-        gh pr view "$BR" >/dev/null 2>&1 || gh pr create --head "$BR" --title "credit: sync CREDIT.json" --body "Automated by the credit repo-wallet Action. Ledger verified: lit."
+        gh pr view "$BR" >/dev/null 2>&1 || gh pr create --head "$BR" --title "credit: sync CREDIT.json" --body "Automated by the credit repo-wallet Action. Ledger verified: lit. May also add scan-page funding pointers (.github/FUNDING.yml, package.json#funding) — existing values are never overwritten."
