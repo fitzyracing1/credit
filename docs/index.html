@@ -1,0 +1,43 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>creditscan — public credit ledger</title>
+<style>
+body{font:14px/1.45 system-ui,sans-serif;margin:0;background:#0f1115;color:#e6e6e6}
+header{padding:16px 24px;border-bottom:1px solid #2a2d35;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+h1{font-size:18px;margin:0} main{padding:16px 24px;max-width:1200px}
+input{background:#1a1d24;color:#eee;border:1px solid #333;padding:8px;border-radius:6px;min-width:280px}
+table{width:100%;border-collapse:collapse;margin:12px 0} th,td{padding:6px 8px;border-bottom:1px solid #22252c;text-align:left;vertical-align:top}
+th{color:#9aa0aa;font-weight:500} code{font-size:12px;color:#9ecbff} a{color:#9ecbff}
+.lit{color:#ffd54a;font-weight:600}.lit::before{content:"● "} .dark{color:#666;font-weight:600}.dark::before{content:"○ "}
+.card{background:#161920;border:1px solid #2a2d35;border-radius:8px;padding:12px 16px;margin:12px 0}
+</style></head><body>
+<header><h1>creditscan</h1><span id="status">verifying…</span>
+<input id="q" placeholder="filter by user or owner/repo" aria-label="filter"></header>
+<main><div id="summary" class="card"></div><h2>Recipients</h2><table id="recip"></table><h2>Grants</h2><table id="grants"></table>
+<p>Badge: <code>https://img.shields.io/endpoint?url=https://fitzyracing1.github.io/credit/badges/&lt;type&gt;-&lt;id&gt;.json</code> (repo ids use <code>--</code> for <code>/</code>)</p></main>
+<script>
+const canonical=v=>Array.isArray(v)?'['+v.map(canonical).join(',')+']':(v&&typeof v==='object')?'{'+Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+canonical(v[k])).join(',')+'}':JSON.stringify(v);
+const b64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+const hex=b=>[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
+const enc=new TextEncoder(); const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+async function verify(log,trusted){let prev='0'.repeat(64);const out=[];
+ for(const [i,e] of log.entries()){const {sig,hash,...body}=e;const errs=[];const c=canonical(body);
+  if(e.seq!==i)errs.push('seq');if(e.prev!==prev)errs.push('chain');
+  if(hex(await crypto.subtle.digest('SHA-256',enc.encode(c+sig)))!==hash)errs.push('hash');
+  try{const k=await crypto.subtle.importKey('raw',b64(e.pubkey),{name:'Ed25519'},false,['verify']);
+   if(!await crypto.subtle.verify({name:'Ed25519'},k,b64(sig),enc.encode(c)))errs.push('sig');}catch(x){errs.push('sig (browser lacks Ed25519?)')}
+  if(trusted&&!(trusted[e.from]||[]).includes(e.pubkey))errs.push('untrusted key');
+  out.push(errs);prev=hash;}return out;}
+(async()=>{
+ const log=(await (await fetch('grants.jsonl',{cache:'no-store'})).text()).split('\n').filter(Boolean).map(JSON.parse);
+ let trusted;try{trusted=await (await fetch('keys.json')).json()}catch{}
+ const res=await verify(log,trusted);const allOk=res.every(r=>!r.length);
+ document.getElementById('status').innerHTML=`<span class="${allOk?'lit':'dark'}">${allOk?'lit':'dark'}</span> ledger: ${log.length} grants`;
+ const render=()=>{const q=(document.getElementById('q').value||location.hash.slice(1).replace(/^(user|repo):/,'')).toLowerCase();
+  const rows=log.map((e,i)=>({e,errs:res[i]})).filter(({e})=>!q||e.to.id.toLowerCase().includes(q)||e.from.toLowerCase().includes(q));
+  const bal={};for(const {e,errs} of rows){const k=e.to.type+':'+e.to.id;(bal[k]||={to:e.to,t:0,n:0,ok:true});bal[k].t+=e.amount;bal[k].n++;if(errs.length)bal[k].ok=false;}
+  document.getElementById('summary').innerHTML=`Head <code>${esc(log.length?log.at(-1).hash:'—')}</code><br>Total credit ${log.reduce((a,e)=>a+e.amount,0)} across ${Object.keys(bal).length} recipients shown`;
+  document.getElementById('recip').innerHTML='<tr><th>recipient</th><th>type</th><th>balance</th><th>grants</th><th>status</th></tr>'+Object.values(bal).sort((a,b)=>b.t-a.t).map(b=>`<tr id="${esc(b.to.type+':'+b.to.id)}"><td><a href="https://github.com/${esc(b.to.id)}">${esc(b.to.id)}</a></td><td>${b.to.type}</td><td>${b.t}</td><td>${b.n}</td><td class="${b.ok?'lit':'dark'}">${b.ok?'lit':'dark'}</td></tr>`).join('');
+  document.getElementById('grants').innerHTML='<tr><th>#</th><th>time (UTC)</th><th>from</th><th>to</th><th>amount</th><th>for</th><th>hash</th><th>status</th></tr>'+rows.slice().reverse().map(({e,errs})=>`<tr><td>${e.seq}</td><td>${esc(e.ts)}</td><td>${esc(e.from)}</td><td>${esc(e.to.id)}</td><td>${e.amount}</td><td>${esc(e.for)}</td><td><code title="${esc(e.hash)}">${esc(e.hash.slice(0,12))}…</code></td><td class="${errs.length?'dark':'lit'}" title="${esc(errs.join(', '))}">${errs.length?'dark':'lit'}</td></tr>`).join('');};
+ document.getElementById('q').oninput=render;window.onhashchange=render;render();
+})().catch(e=>{document.getElementById('status').innerHTML='<span class="dark">dark</span> '+esc(e.message)});
+</script></body></html>
