@@ -47,5 +47,26 @@ contract and **nothing is deployed** — tests run against a mock on a local EVM
 > Turning on revenue share **may make credits an investment contract / security under
 > securities law**. It ships disabled. **Get legal review before enabling.** See SPEC §8.
 
+## Give credit (CLI, `repo-credit`)
+[![credit](https://img.shields.io/endpoint?url=https://fitzyracing1.github.io/credit/badges/repo-fitzyracing1--credit.json)](https://fitzyracing1.github.io/credit/)
+
+Signed (ed25519), hash-chained, append-only grants in [`ledger/grants.jsonl`](ledger/grants.jsonl).
+Node ≥ 20, zero dependencies. **Not published to npm** — run from a clone (`npm link` for a global `credit`).
+
+```sh
+node cli/credit.js keygen --as <your-github-user>   # private key -> ~/.config/credit (never committed/printed)
+node cli/credit.js give octocat/hello 5 --for "saved me a week"   # appends grant; PR + email are DRY-RUN
+node cli/credit.js give octocat 5 --for "..." --send               # actually opens the CREDIT.json PR
+node cli/credit.js verify                                          # lit / dark
+node cli/credit.js site                                            # refresh docs/ (scan page + badges)
+npm test
+```
+
+- **Scan page**: `docs/` is GitHub Pages-ready (Settings → Pages → `main` / `docs`). Verifies every grant in the browser and shows lit/dark.
+- **Badges**: `https://img.shields.io/endpoint?url=https://fitzyracing1.github.io/credit/badges/<user|repo>-<id>.json` (`/` → `--`).
+- **Repo wallet**: add [`examples/workflows/credit-wallet.yml`](examples/workflows/credit-wallet.yml) to your repo; the [`action.yml`](action.yml) fetches the ledger, verifies it, and opens a PR in *your* repo syncing `CREDIT.json`.
+- **Future rails (OFF)**: `rails/` holds an ERC-20-style token mirror (no deploy) and a bank-payout adapter interface (no provider), gated by `config/rails.json`. ⚠️ **Needs legal review** before enabling either.
+- Credit is recognition only — not money, not a security.
+
 ## License
 MIT © 2026 Joshua Almeida

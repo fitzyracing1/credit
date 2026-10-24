@@ -1,0 +1,5 @@
+{
+  "_note": "Future payout rails. ALL OFF. Each NEEDS LEGAL REVIEW before enabling (securities, money transmission, tax, KYC/AML).",
+  "tokenMirror": { "enabled": false, "legalReviewed": false },
+  "bankPayout": { "enabled": false, "legalReviewed": false, "provider": null }
+}
