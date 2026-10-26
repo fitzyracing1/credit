@@ -8,6 +8,7 @@ const R = require('../lib/recipient');
 const F = require('../lib/front');
 const FEED = require('../lib/feed');
 const HOW = require('../lib/howitworks');
+const LB = require('../lib/leaderboard');
 
 const ROOT = path.resolve(__dirname, '..');
 const DEFAULTS = {
@@ -125,7 +126,11 @@ async function main(argv, out = console.log) {
       fs.writeFileSync(path.join(dir, 'feed.json'), JSON.stringify(FEED.feedJson(log, urls), null, 2) + '\n');
       fs.writeFileSync(path.join(dir, 'feed.xml'), FEED.feedAtom(log, urls));
       fs.writeFileSync(path.join(dir, 'how-it-works.html'), HOW.howItWorksHtml(urls));
-      out(`site data written to ${dir} (incl. crawler feeds feed.json + feed.xml, how-it-works.html)`);
+      const board = LB.rank(log, readJson(DEFAULTS.keys, undefined));
+      fs.mkdirSync(path.join(dir, 'badge'), { recursive: true });
+      for (const r of board.rows) fs.writeFileSync(path.join(dir, 'badge', `${r.slug}.svg`), LB.badgeSvg(r.total));
+      fs.writeFileSync(path.join(dir, 'leaderboard.html'), LB.leaderboardHtml(board, urls));
+      out(`site data written to ${dir} (incl. crawler feeds feed.json + feed.xml, how-it-works.html, leaderboard.html, badge/*.svg)`);
       return 0;
     }
     case 'sync': {
