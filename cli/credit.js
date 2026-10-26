@@ -7,6 +7,7 @@ const L = require('../lib/ledger');
 const R = require('../lib/recipient');
 const F = require('../lib/front');
 const FEED = require('../lib/feed');
+const HOW = require('../lib/howitworks');
 
 const ROOT = path.resolve(__dirname, '..');
 const DEFAULTS = {
@@ -123,7 +124,8 @@ async function main(argv, out = console.log) {
       const urls = { ledgerUrl: DEFAULTS.ledgerUrl, scanUrl: DEFAULTS.scanUrl };
       fs.writeFileSync(path.join(dir, 'feed.json'), JSON.stringify(FEED.feedJson(log, urls), null, 2) + '\n');
       fs.writeFileSync(path.join(dir, 'feed.xml'), FEED.feedAtom(log, urls));
-      out(`site data written to ${dir} (incl. crawler feeds feed.json + feed.xml)`);
+      fs.writeFileSync(path.join(dir, 'how-it-works.html'), HOW.howItWorksHtml(urls));
+      out(`site data written to ${dir} (incl. crawler feeds feed.json + feed.xml, how-it-works.html)`);
       return 0;
     }
     case 'sync': {
